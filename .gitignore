@@ -105,3 +105,6 @@ ENV/
 
 # data
 ignore_data
+
+exportfiles
+exportfiles.zip

@@ -1,11 +1,13 @@
 import os
 import errno
-import email
 from xml.dom.minidom import parseString
 
-filename = "dba_7920_new.csv"
-delimiter = "^"
-terminator = "~"
+data_filename = "ignore_data/dba_7920_new.csv"
+data_delimiter = "^"
+data_terminator = "~"
+
+keywords_filename = "ignore_data/keywords.csv"
+keywords_terminator = ","
 output_directory = "exportfiles"
 
 def mkdir_p(path):
@@ -18,23 +20,34 @@ def mkdir_p(path):
             raise
 
 def read_file(path):
-    with open(path, 'rb') as csvfile:
-        return csvfile.read().split(terminator)
+    with open(path, 'rb') as pathfile:
+        return pathfile.read()
+
+def clean_text(uncleantext):
+    return uncleantext.replace("=0A","")
 
 def create_file(path, content):
     new_file = open(path, 'w+')
     new_file.write(content)
     new_file.close()
 
-def parse_email(xmlemailtext):
-    msg = email.message_from_string(xmlemailtext)
-    result = msg.get_payload()
-    print(result)
-    return result
-
 def parse_xml(xmltext):
-    result = "<b>No data found<b>"
-    return result
+    try:
+        minidom = parseString(xmltext.encode('utf-16-be'))
+        bodycontents = minidom.getElementsByTagName("Body-Content")
+        results = []
+        if(len(bodycontents) > 0):
+            for bodycontent in bodycontents:
+                if (bodycontent is not None and
+                            bodycontent.firstChild is not None and
+                            bodycontent.firstChild.data is not None):
+                    results.append(bodycontent.firstChild.data)
+        if(len(results) > 0):
+            return "\n".join(results)
+        else:
+            return None
+    except:
+        return None
 
 def process_subrecord(subrecords):
     # Check if record is valid
@@ -43,36 +56,40 @@ def process_subrecord(subrecords):
         # Get info from the record
         loanid = subrecords[0]
         email = subrecords[2]
+        subject = subrecords[3]
         xmlemailtext = subrecords[4]
         creationdate = subrecords[6]
         formatteddate = '_'.join(creationdate.split('.')[0].split(' '))
-
-        # Create the folder for the current loanid
-        mkdir_p(str(loanid))
         exportfilename = output_directory + "/" + (loanid) + "/" + str(loanid) + "_" + formatteddate + ".html"
 
+        # Create the folder for the current loanid
+        mkdir_p(output_directory + "/" + (loanid))
+
         # Parse Email
-        escapedbody = parse_email(xmlemailtext)
+        parsedtext = parse_xml(xmlemailtext)
 
         # Create File
-        print("Creating -> " + exportfilename)
-        create_file(exportfilename, unescapedbody)
+        if(parsedtext is not None):
+            print("Creating -> " + exportfilename)
+            cleantext = clean_text(parsedtext)
+            create_file(exportfilename, cleantext)
+        else:
+            print("Skipping -> " + exportfilename)
 
-def process_records(records):
+def process_records(data_records, keyword_records):
     # Process each record
-    for i in range(len(records)):
+    for i in range(len(data_records)):
 
         # Skip header row
         if i == 0:
           continue
 
         # Access the record by index
-        record = records[i]
+        record = data_records[i]
 
         # Split custom delimited record
-        subrecords = record.split(delimiter)
+        subrecords = record.split(data_delimiter)
         process_subrecord(subrecords)
-        break
 
 # Main
 if __name__ == "__main__":
@@ -82,10 +99,16 @@ if __name__ == "__main__":
 
     print("Reading the file")
 
-    records = read_file(filename)
-
+    datafile_as_string = read_file(data_filename)
+    data_records = datafile_as_string.split(data_terminator)
     # Total records in the file
-    print("Total records -> " + str(len(records)))
+    print("Total data records -> " + str(len(data_records)))
+
+    keywordfile_as_string = read_file(keywords_filename)
+    keyword_records = keywordfile_as_string.split(keywords_terminator)
+    # Total records in the file
+    print("Total keyword records -> " + str(len(keyword_records)))
+
 
     print("Processing all records")
-    process_records(records)
+    process_records(data_records, keyword_records)
