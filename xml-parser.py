@@ -7,7 +7,7 @@ def read_file(path):
 
 if __name__ == "__main__":
 
-    xmltext = read_file("ignore_data/junk.xml")
+    xmltext = read_file("ignore_data/multipart.xml")
 
     minidom = parseString(xmltext.encode('utf-16-be'))
 
